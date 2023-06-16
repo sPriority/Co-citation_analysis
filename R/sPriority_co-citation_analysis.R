@@ -199,47 +199,39 @@ connect.clust <- el.join.final %>%
 connect.clust <- connect.clust %>%
   mutate(V2.clust = recode(V2.clust, '1' = "Theory, etc.", '2' = "Animals", '3' =  "Plants", '4' = "Evolution", '5' = "Parasitology", '6' = "Polar" ))
 
-### Across vs Within by cluster
-
-connect.clust.sum <- connect.clust %>%
-  group_by(V1.clust, within.v.across) %>%
-  summarise(sum = sum(No.Edge))
-
-connect.clust %>%
-  group_by(V1.clust) %>%
-  summarise(sum = sum(No.Edge)) # to get total number of co-citations by cluster for x-axis annotation
-
-
-# stacked bar plot
-ggplot(connect.clust.sum, aes(x = factor(V1.clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")),
-                                     y = sum, fill=within.v.across)) + 
-  scale_fill_manual(values=c("#c7e9b4", "#2c7fb8")) +
-  geom_bar(position="fill", stat="identity") +
-  theme_classic() +
-  labs(y = "Proportion of Co-citations")+
-  theme(axis.title.x = element_blank(),
-        legend.title = element_blank(),
-        legend.position="top",
-        legend.justification="right")+
-  scale_x_discrete(labels=c("Theory\n (15,849)", "Animals\n (3,018)", "Plants\n (10,061)", "Evolution\n (2,356)", "Parasitol.\n (399)", "Polar\n (3,086)"))
 
 ### Edge identity by cluster
 
+# connect.clust.sum2 <- connect.clust %>%
+#   group_by(V1.clust, V2.clust) %>%
+#   summarise(sum = sum(No.Edge))       # summarize keeping order of clusters
+# 
+# print(tbl_df(connect.clust.sum2), n=25) # show full df
+
+
 connect.clust.sum2 <- connect.clust %>%
-  group_by(V1.clust, V2.clust) %>%
-  summarise(sum = sum(No.Edge))
+  group_by(V1_clust = pmin(V1.clust, V2.clust), V2_clust = pmax(V1.clust, V2.clust)) %>%
+  summarise(sum = sum(No.Edge)) %>% 
+  as.data.frame                       # summarize regardless of order of clusters
 
-print(tbl_df(connect.clust.sum2), n=25) # show full df
+# NOTE: Bibliometrix does not create duplicate edge names for citation pairs;
+# Thus, to have edges for theory-animal and animal-theory count towards both groups, need to:
+# create new df to append to connect.clust.sum2 to include all V1_clust-V2_clust pairs for stacked plot
+df.apend <- data.frame(V1_clust = c("Evolution","Parasitology","Plants","Theory, etc.","Parasitology","Plants","Theory, etc.","Plants","Theory, etc.","Theory, etc."),
+                       V2_clust = c("Animals","Animals","Animals","Animals", "Evolution","Evolution","Evolution","Parasitology","Parasitology","Plants"),
+                       sum = c(250,71,653,1957,25,211,1524,4,128,4323)) 
 
-connect.clust.sum2.across <- connect.clust.sum2[-c(1,7,13,18,25),] # remove rows that show total within cluster, except Polar
+connect.clust.sum2.append = rbind(connect.clust.sum2,df.apend) # append two dfs
 
-connect.clust.sum2.across %>%
-  group_by(V1.clust) %>%
+connect.clust.sum2.append.across <- connect.clust.sum2.append[-c(1,6,10,13,16),] # remove rows that show total within cluster, except Polar
+
+connect.clust.sum2.append.across %>%
+  group_by(V1_clust) %>%
   summarise(sum = sum(sum)) # to get total number of across-cluster co-citations by cluster for x-axis annotation
 
 # stacked bar plot
-ggplot(connect.clust.sum2.across, aes(x = factor(V1.clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")),
-                          y = sum, fill=factor(V2.clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")))) + 
+ggplot(connect.clust.sum2.append.across, aes(x = factor(V1_clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")),
+                                             y = sum, fill=factor(V2_clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")))) + 
   scale_fill_manual(values=c("#edf8b1", "#c7e9b4", "#7fcdbb", "#41b6c4", "#1d91c0", "#0c2c84")) +
   geom_bar(position="fill", stat="identity") +
   theme_classic() +
@@ -248,4 +240,39 @@ ggplot(connect.clust.sum2.across, aes(x = factor(V1.clust, levels = c("Theory, e
         legend.title = element_blank(),
         legend.position="top",
         legend.justification="right") +
-  scale_x_discrete(labels=c("Theory\n (5,705)", "Animals\n (1,309)", "Plants\n (1,415)", "Evolution\n (693)", "Parasitol.\n (24)", "Polar\n (0)"))
+  scale_x_discrete(labels=c("Theory\n (7,932)", "Animals\n (2,931)", "Plants\n (5,191)", "Evolution\n (2,010)", "Parasitol.\n (228)", "Polar\n (0)"))
+
+
+### Across vs Within by cluster
+
+connect.clust.sum2.append
+
+new_col<- list(within.v.across = c("Within","Across","Across","Across","Across",
+                                   "Within","Across","Across","Across","Within",
+                                   "Across","Across","Within","Across","Within",
+                                   "Within","Across","Across","Across","Across",
+                                   "Across","Across","Across","Across","Across",
+                                   "Across"))
+connect.clust.sum2.append.new = cbind(connect.clust.sum2.append,new_col)
+
+connect.clust.sum <- connect.clust.sum2.append.new %>%
+  group_by(V1_clust, within.v.across) %>%
+  summarise(sum = sum(sum))
+
+connect.clust.sum2.append.new %>%
+  group_by(V1_clust) %>%
+  summarise(sum = sum(sum)) # to get total number of co-citations by cluster for x-axis annotation
+
+
+# stacked bar plot
+ggplot(connect.clust.sum, aes(x = factor(V1_clust, levels = c("Theory, etc.", "Animals", "Plants", "Evolution", "Parasitology", "Polar")),
+                              y = sum, fill=within.v.across)) + 
+  scale_fill_manual(values=c("#c7e9b4", "#2c7fb8")) +
+  geom_bar(position="fill", stat="identity") +
+  theme_classic() +
+  labs(y = "Proportion of Co-citations")+
+  theme(axis.title.x = element_blank(),
+        legend.title = element_blank(),
+        legend.position="top",
+        legend.justification="right")+
+  scale_x_discrete(labels=c("Theory\n (18,076)", "Animals\n (4,640)", "Plants\n (13,837)", "Evolution\n (3,673)", "Parasitol.\n (603)", "Polar\n (3,086)"))
